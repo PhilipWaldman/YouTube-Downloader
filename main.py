@@ -60,7 +60,7 @@ def download_playlist(p):
         print(f'Video title: "{v.title}"')
         v.register_on_progress_callback(progress_func)
         v.register_on_complete_callback(complete_func)
-        download_video(v)
+        download_video(v, p.title)
         print()
         counter += 1
 
@@ -86,9 +86,12 @@ def correct_video_title(yt):
     return choice != 'n'
 
 
-def download_video(yt):
+def download_video(yt, folder=''):
     video = yt.streams.get_highest_resolution()
-    video.download('Downloads')
+    path = 'Downloads'
+    if len(folder) > 0:
+        path += '\\' + folder
+    video.download(path)
 
 
 def progress_func(stream, chunk, bytes_remaining):
