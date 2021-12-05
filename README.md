@@ -1,6 +1,6 @@
 # YouTube Video Downloader
 
-This tool allows you to download a single YouTube video or a whole playlist. The downloaded videos will be placed in the Downloads folder next to this file, not your computer's default Downloads folder.
+This tool allows you to download a single YouTube video, a whole playlist, and even a whole channel. The downloaded videos will be placed in the Downloads folder next to this file, not your computer's default Downloads folder.
 
 Note: The videos and playlists you want to download must be either public or unlisted. If the video/playlist is private the tool cannot access it.
 
