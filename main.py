@@ -1,6 +1,7 @@
 from time import perf_counter
 
 from pytube import YouTube, Playlist
+from pytube.exceptions import RegexMatchError, VideoPrivate, VideoUnavailable
 
 
 def main():
@@ -18,8 +19,8 @@ def program_loop():
 
 
 def download_more():
-    choice = input('Do You want to download more? [y/n] ')
-    return False if choice == 'n' else True
+    choice = input('Do you want to download more? [y/n] ')
+    return choice != 'n'
 
 
 def get_url():
@@ -34,45 +35,55 @@ def is_playlist(url):
 
 
 def playlist(url):
-    p = Playlist(url)
-    if not correct_playlist_title(p):
-        return
-    download_playlist(p)
+    try:
+        p = Playlist(url)
+        if not correct_playlist_title(p):
+            return
+        download_playlist(p)
+    except RegexMatchError:
+        print(f'{url} is not a valid playlist url.')
+    except KeyError:
+        print(f'{url} is not available or is not a playlist and cannot be downloaded.')
 
 
 def correct_playlist_title(p):
-    choice = input(f'Do you want to download all {p.length} videos in the playlist with the title "{p.title}"? [y/n] ')
-    if choice == 'n':
-        return False
-    return True
+    choice = input(f'Do you want to download all {len(p.videos)} (non-private) videos '
+                   f'in the playlist with the title "{p.title}"? [y/n] ')
+    return choice != 'n'
 
 
 def download_playlist(p):
+    print()
     counter = 1
     for v in p.videos:
-        print()
-        print(f'Downloading video {counter} out of {p.length}.')
+        print(f'Downloading video {counter} out of {len(p.videos)}.')
         print(f'Video title: "{v.title}"')
         v.register_on_progress_callback(progress_func)
+        v.register_on_complete_callback(complete_func)
         download_video(v)
         print()
         counter += 1
 
 
 def single_video(url):
-    yt = YouTube(url,
-                 on_progress_callback=progress_func,
-                 on_complete_callback=complete_func)
-    if not correct_video_title(yt):
-        return
-    download_video(yt)
+    try:
+        yt = YouTube(url,
+                     on_progress_callback=progress_func,
+                     on_complete_callback=complete_func)
+        if not correct_video_title(yt):
+            return
+        download_video(yt)
+    except RegexMatchError:
+        print(f'{url} is not a valid video url.')
+    except VideoPrivate:
+        print(f'{url} is a private video and cannot be downloaded.')
+    except VideoUnavailable:
+        print(f'{url} is unavailable to us and cannot be downloaded.')
 
 
 def correct_video_title(yt):
     choice = input(f'Do you want to download the video with the title "{yt.title}"? [y/n] ')
-    if choice == 'n':
-        return False
-    return True
+    return choice != 'n'
 
 
 def download_video(yt):
