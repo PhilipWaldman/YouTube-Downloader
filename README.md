@@ -21,4 +21,7 @@ Note: The videos and playlists you want to download must be either public or unl
 1. Open command prompt and navigate to this folder using `cd "this folder's location"`
 2. Activate the virtual environment: `.\venv\Scripts\activate`
 3. Run the tool: `py app.py`
-4. When done, deactivate the virtual environment: `deactivate`
+4. The tool can now be used by following the instructions printed.
+5. If the tool is taking a long time with downloading because you thought it was a good idea to download a playlist or channel with a **lot** of video but don't feel like waiting until it's done, pressing CTRL-C will terminate the tool.
+6. If the tool got quit for any reason, it can be started again by going back to step 3.
+7. When done, deactivate the virtual environment: `deactivate`
