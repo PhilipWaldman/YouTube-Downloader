@@ -4,6 +4,8 @@ This tool allows you to download a single YouTube video, a whole playlist, and e
 
 Note: The videos and playlists you want to download must be either public or unlisted. If the video/playlist is private the tool cannot access it.
 
+Next we will explain how to create a virtual environment where the packages necessary for the tool can be installed and how to run the tool from there. If you do not want to use a virtual environment, then, in *Installing Necessary Packages* only do steps 1, 2, and 6 and in *Running the Tool* steps 1, 3, 4, 5, and 6.
+
 ## Installing Necessary Packages (Windows)
 
 1. Open command prompt and navigate to this folder using `cd "this folder's location"`
@@ -25,3 +27,8 @@ Note: The videos and playlists you want to download must be either public or unl
 5. If the tool is taking a long time with downloading because you thought it was a good idea to download a playlist or channel with a **lot** of video but don't feel like waiting until it's done, pressing CTRL-C will terminate the tool.
 6. If the tool got quit for any reason, it can be started again by going back to step 3.
 7. When done, deactivate the virtual environment: `deactivate`
+
+## Future Features
+
+- Option to only download the audio of the video and save it to an MP3 file.
+- Highest resolution video download using DASH streaming. Audio and video have to be downloaded separately and combined later. https://pytube.io/en/latest/user/streams.html
