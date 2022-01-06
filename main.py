@@ -1,18 +1,31 @@
+from os import remove
 from os.path import join
+from subprocess import run, CalledProcessError
 from time import perf_counter
 from typing import Union
 
 from pytube import YouTube, Playlist, Channel
 from pytube.exceptions import RegexMatchError, VideoPrivate, VideoUnavailable
 
+ffmpeg = True
+
 
 def main():
-    program_loop()
+    has_ffmpeg()
+    program_loop_body()
     while download_more():
-        program_loop()
+        program_loop_body()
 
 
-def program_loop():
+def has_ffmpeg():
+    try:
+        run('ffmpeg -h', stderr=False, stdout=False, check=True, shell=True)
+    except CalledProcessError:
+        global ffmpeg
+        ffmpeg = False
+
+
+def program_loop_body():
     url = get_url()
     if is_playlist(url):
         playlist(url)
@@ -90,8 +103,6 @@ def download_playlist(p: Union[Playlist, Channel]):
     for v in p.videos:
         print(f'Downloading video {counter} out of {n_videos}.')
         print(f'Video title: "{v.title}"')
-        v.register_on_progress_callback(progress_func)
-        v.register_on_complete_callback(complete_func)
         download_video(v, p.title if type(p) is Playlist else p.channel_name)
         print()
         counter += 1
@@ -99,9 +110,7 @@ def download_playlist(p: Union[Playlist, Channel]):
 
 def single_video(url: str):
     try:
-        yt = YouTube(url,
-                     on_progress_callback=progress_func,
-                     on_complete_callback=complete_func)
+        yt = YouTube(url)
         if not correct_video_title(yt):
             return
         download_video(yt)
@@ -118,10 +127,49 @@ def correct_video_title(yt: YouTube) -> bool:
 
 
 def download_video(yt: YouTube, folder=''):
-    video = yt.streams.get_highest_resolution()
     path = 'Downloads'
     if len(folder) > 0:
         path = join(path, folder)
+
+    if not ffmpeg:
+        download_progressive_video(yt, path)
+    else:
+        # Download the separate video and audio files
+        # .first() downloads the lowest resolution video file. This is to reduce testing time.
+        print('Downloading video and audio files...')
+        video = yt.streams.filter(progressive=False, mime_type='video/webm').order_by('resolution').first()
+        audio = yt.streams.get_audio_only(subtype='webm')
+        if not video or not audio:
+            download_progressive_video(yt, path)
+            return
+        video_path = video.download(filename_prefix='video_')
+        audio_path = audio.download(filename_prefix='audio_')
+
+        # Combine the video and audio files
+        print('Combining video and audio files...')
+        cmd = ['ffmpeg', '-y', '-i', audio_path, '-i', video_path,
+               join(path, video.default_filename.replace('webm', 'mp4'))]
+        try:
+            run(cmd, stderr=False, stdout=False, check=True, shell=True)
+        except CalledProcessError:
+            download_progressive_video(yt, path)
+
+        # Remove the separate video and audio files
+        print('Removing the separate video and audio files...')
+        try:
+            remove(video_path)
+        except FileNotFoundError:
+            pass
+        try:
+            remove(audio_path)
+        except FileNotFoundError:
+            pass
+
+
+def download_progressive_video(yt: YouTube, path: str):
+    yt.register_on_progress_callback(progress_func)
+    yt.register_on_complete_callback(complete_func)
+    video = yt.streams.get_highest_resolution()
     video.download(path)
 
 
