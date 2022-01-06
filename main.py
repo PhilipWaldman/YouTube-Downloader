@@ -2,12 +2,14 @@ from os import remove
 from os.path import join
 from subprocess import run, CalledProcessError
 from time import perf_counter
-from typing import Union
+from typing import Union, Set, List
 
 from pytube import YouTube, Playlist, Channel
 from pytube.exceptions import RegexMatchError, VideoPrivate, VideoUnavailable
 
 ffmpeg = True
+use_progressive = False
+resolution = None
 
 
 def main():
@@ -26,6 +28,8 @@ def has_ffmpeg():
 
 
 def program_loop_body():
+    global resolution
+    resolution = None
     url = get_url()
     if is_playlist(url):
         playlist(url)
@@ -131,46 +135,95 @@ def download_video(yt: YouTube, folder=''):
     if len(folder) > 0:
         path = join(path, folder)
 
-    if not ffmpeg:
+    if not resolution:
+        set_download_resolution(yt)
+
+    if not ffmpeg or use_progressive:
         download_progressive_video(yt, path)
     else:
-        # Download the separate video and audio files
-        # .first() downloads the lowest resolution video file. This is to reduce testing time.
-        print('Downloading video and audio files...')
-        video = yt.streams.filter(progressive=False, mime_type='video/webm').order_by('resolution').first()
-        audio = yt.streams.get_audio_only(subtype='webm')
-        if not video or not audio:
-            download_progressive_video(yt, path)
-            return
-        video_path = video.download(filename_prefix='video_')
-        audio_path = audio.download(filename_prefix='audio_')
+        download_adaptive_video(yt, path)
 
-        # Combine the video and audio files
-        print('Combining video and audio files...')
-        cmd = ['ffmpeg', '-y', '-i', audio_path, '-i', video_path,
-               join(path, video.default_filename.replace('webm', 'mp4'))]
-        try:
-            run(cmd, stderr=False, stdout=False, check=True, shell=True)
-        except CalledProcessError:
-            download_progressive_video(yt, path)
 
-        # Remove the separate video and audio files
-        print('Removing the separate video and audio files...')
-        try:
-            remove(video_path)
-        except FileNotFoundError:
-            pass
-        try:
-            remove(audio_path)
-        except FileNotFoundError:
-            pass
+def set_download_resolution(yt: YouTube):
+    progressive_streams = yt.streams.filter(progressive=True, type='video')
+    adaptive_streams = yt.streams.filter(adaptive=True, type='video')
+
+    p_res = {s.resolution for s in progressive_streams}
+    p_res_max = max([int(i[:-1]) for i in p_res])
+    a_res = {s.resolution for s in adaptive_streams if int(s.resolution[:-1]) > p_res_max}
+
+    options_str = f'{sort_resolutions(p_res | a_res, ascending=False)}'[1:-1].replace("'", '')
+    prompt = f'At what resolution do you want to download the following video(s)?\n' \
+             f'The options are: {options_str}\n' \
+             f'Note: resolutions higher than {p_res_max}p use a different downloading method and take ' \
+             f'significantly longer to download.\n' \
+             f'Resolution: '
+    choice = input(prompt)
+    all_choices = p_res | a_res
+    all_choices |= {c[:-1] for c in all_choices}
+    while choice not in all_choices:
+        choice = input(f'{choice} is not a valid resolution. The options are: {options_str} ')
+    global resolution
+    resolution = choice if choice.endswith('p') else f'{choice}p'
+
+    int_res = int(resolution[:-1])
+    global use_progressive
+    use_progressive = int_res <= p_res_max
+
+
+def sort_resolutions(resolutions: Set[str], ascending=True) -> List[str]:
+    res_dict = {int(r[:-1]): r for r in resolutions}
+    sorted_res = []
+    while len(res_dict) > 0:
+        if ascending:
+            cur_res = min(res_dict.keys())
+        else:
+            cur_res = max(res_dict.keys())
+        sorted_res.append(res_dict[cur_res])
+        res_dict.pop(cur_res)
+    return sorted_res
 
 
 def download_progressive_video(yt: YouTube, path: str):
     yt.register_on_progress_callback(progress_func)
     yt.register_on_complete_callback(complete_func)
-    video = yt.streams.get_highest_resolution()
+    video = yt.streams.filter(resolution=resolution, progressive=True).first()
     video.download(path)
+
+
+def download_adaptive_video(yt: YouTube, path: str):
+    # Download the separate video and audio files
+    # .first() downloads the lowest resolution video file. This is to reduce testing time.
+    print('Downloading video and audio files...')
+    video = yt.streams.filter(adaptive=True, mime_type='video/webm').order_by('resolution').first()
+    audio = yt.streams.get_audio_only(subtype='webm')
+    if not video or not audio:
+        download_progressive_video(yt, path)
+        return
+    yt.register_on_progress_callback(progress_func)
+    video_path = video.download(path, filename_prefix='video_')
+    audio_path = audio.download(path, filename_prefix='audio_')
+    print()
+
+    # Combine the video and audio files
+    print('Combining video and audio files...')
+    cmd = ['ffmpeg', '-y', '-i', audio_path, '-i', video_path,
+           join(path, video.default_filename.replace('webm', 'mp4'))]
+    try:
+        run(cmd, stderr=False, stdout=False, check=True, shell=True)
+    except CalledProcessError:
+        download_progressive_video(yt, path)
+
+    # Remove the separate video and audio files
+    print('Removing the separate video and audio files...')
+    try:
+        remove(video_path)
+    except FileNotFoundError:
+        pass
+    try:
+        remove(audio_path)
+    except FileNotFoundError:
+        pass
 
 
 def progress_func(stream, chunk, bytes_remaining):
@@ -217,8 +270,8 @@ def yes_to_continue(prompt: str) -> bool:
     """
     choices = {'n', 'y'}
     choice = input(f'{prompt} [y/n] ').lower()
-    if choice not in choices:
-        choice = input(f'Please only answer with [y/n]: {prompt} ')
+    while choice not in choices:
+        choice = input(f'Please only answer with [y/n]: {prompt} ').lower()
     return choice == 'y'
 
 
