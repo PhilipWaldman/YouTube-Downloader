@@ -22,13 +22,18 @@ Next we will explain how to create a virtual environment where the packages nece
 
 1. Open command prompt and navigate to this folder using `cd "this folder's location"`
 2. Activate the virtual environment: `.\venv\Scripts\activate`
-3. Run the tool: `py app.py`
+3. Run the tool: `py main.py`
 4. The tool can now be used by following the instructions printed.
 5. If the tool is taking a long time with downloading because you thought it was a good idea to download a playlist or channel with a **lot** of video but don't feel like waiting until it's done, pressing CTRL-C will terminate the tool.
 6. If the tool got quit for any reason, it can be started again by going back to step 3.
 7. When done, deactivate the virtual environment: `deactivate`
 
+## Note
+
+The tool probably won't work if the installed version of _pytube_ is outdated. _pytube_ can be updated using `pip install pytube -U`. This will most likely fix some problems that may arise. There is a chance that updating _pytube_ doesn't fix the problems.
+
 ## Future Features
 
 - Option to only download the audio of the video and save it to an MP3 file.
-- Highest resolution video download using DASH streaming. Audio and video have to be downloaded separately and combined later. https://pytube.io/en/latest/user/streams.html
+- Highest resolution video download using DASH streaming.
+- Input prompt asking the user at what resolution to download the video.

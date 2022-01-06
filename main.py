@@ -1,3 +1,4 @@
+from os.path import join
 from time import perf_counter
 from typing import Union
 
@@ -22,12 +23,12 @@ def program_loop():
 
 
 def download_more() -> bool:
-    choice = input('Do you want to download more? [y/n] ')
-    return choice != 'n'
+    return yes_to_continue('Do you want to download more?')
 
 
 def get_url() -> str:
     url = input('Enter the URL of the YouTube video/playlist/channel you want to download: ')
+    # This is a debug feature, so I don't have to paste the video URL every time.
     if not url:
         url = 'https://youtu.be/L1Buw5XPj_k'
     return url
@@ -54,9 +55,8 @@ def channel(url: str):
 
 
 def correct_channel_name(c: Channel) -> bool:
-    choice = input(f'Do you want to download all {len(c.videos)} (non-private) videos '
-                   f'from the channel "{c.channel_name}"? [y/n] ')
-    return choice != 'n'
+    return yes_to_continue(f'Do you want to download all {len(c.video_urls)} (non-private) videos from the '
+                           f'channel "{c.channel_name}"?')
 
 
 def download_channel(c: Channel):
@@ -76,16 +76,19 @@ def playlist(url: str):
 
 
 def correct_playlist_title(p: Playlist) -> bool:
-    choice = input(f'Do you want to download all {len(p.videos)} (non-private) videos '
-                   f'in the playlist with the title "{p.title}"? [y/n] ')
-    return choice != 'n'
+    return yes_to_continue(f'Do you want to download all {p.length} (non-private) videos in the playlist '
+                           f'with the title "{p.title}"?')
 
 
 def download_playlist(p: Union[Playlist, Channel]):
     print()
+    if type(p) is Playlist:
+        n_videos = p.length
+    else:
+        n_videos = len(p.video_urls)
     counter = 1
     for v in p.videos:
-        print(f'Downloading video {counter} out of {len(p.videos)}.')
+        print(f'Downloading video {counter} out of {n_videos}.')
         print(f'Video title: "{v.title}"')
         v.register_on_progress_callback(progress_func)
         v.register_on_complete_callback(complete_func)
@@ -111,15 +114,14 @@ def single_video(url: str):
 
 
 def correct_video_title(yt: YouTube) -> bool:
-    choice = input(f'Do you want to download the video with the title "{yt.title}"? [y/n] ')
-    return choice != 'n'
+    return yes_to_continue(f'Do you want to download the video with the title "{yt.title}"?')
 
 
 def download_video(yt: YouTube, folder=''):
     video = yt.streams.get_highest_resolution()
     path = 'Downloads'
     if len(folder) > 0:
-        path += '\\' + folder
+        path = join(path, folder)
     video.download(path)
 
 
@@ -156,6 +158,20 @@ def calc_remaining_time(bytes_remaining: int, download_speed: float) -> int:
 
 def complete_func(stream, file_path):
     print(f'\nDownload complete. Video saved to {file_path}')
+
+
+def yes_to_continue(prompt: str) -> bool:
+    """ Asks the user the prompt. The prompt gets asked again as long as the user doesn't answer either 'y' or 'n'.
+    Returns True when the user answers 'y' and returns False when the user answer 'n'.
+
+    :param prompt: The prompt to ask the user.
+    :return: True when the user enters 'y', False when the user enters 'n'.
+    """
+    choices = {'n', 'y'}
+    choice = input(f'{prompt} [y/n] ').lower()
+    if choice not in choices:
+        choice = input(f'Please only answer with [y/n]: {prompt} ')
+    return choice == 'y'
 
 
 if __name__ == '__main__':
