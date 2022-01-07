@@ -201,7 +201,7 @@ def available_in_resolution(yt: YouTube) -> bool:
     :param yt: The video to check its resolution.
     :return: Whether it is available in the set resolution.
     """
-    if use_progressive:
+    if use_progressive or not ffmpeg:
         selected_video_stream = yt.streams.filter(progressive=True, resolution=resolution).first()
     else:
         selected_video_stream = yt.streams.filter(adaptive=True, mime_type='video/webm', resolution=resolution).first()
@@ -218,11 +218,13 @@ def set_download_resolution(yt: YouTube):
     global resolution, use_progressive, best_res, default_res
 
     progressive_streams = yt.streams.filter(progressive=True, type='video')
-    adaptive_streams = yt.streams.filter(adaptive=True, type='video')
-
     p_res = {s.resolution for s in progressive_streams}
     p_res_max = max([int(i[:-1]) for i in p_res])
-    a_res = {s.resolution for s in adaptive_streams if int(s.resolution[:-1]) > p_res_max}
+    if ffmpeg:
+        adaptive_streams = yt.streams.filter(adaptive=True, type='video')
+        a_res = {s.resolution for s in adaptive_streams if int(s.resolution[:-1]) > p_res_max}
+    else:
+        a_res = set()
 
     sorted_res = sort_resolutions(p_res | a_res, ascending=False)
     sorted_res.extend(["best", "default"])
@@ -259,10 +261,13 @@ def set_best_resolution(yt: YouTube):
     global resolution, use_progressive
 
     progressive_streams = yt.streams.filter(progressive=True, type='video')
-    adaptive_streams = yt.streams.filter(adaptive=True, type='video')
 
     p_res = {s.resolution for s in progressive_streams}
-    a_res = {s.resolution for s in adaptive_streams}
+    if ffmpeg:
+        adaptive_streams = yt.streams.filter(adaptive=True, type='video')
+        a_res = {s.resolution for s in adaptive_streams}
+    else:
+        a_res = set()
     max_res = max([int(i[:-1]) for i in p_res | a_res])
     resolution = f'{max_res}p'
     use_progressive = max_res in p_res
