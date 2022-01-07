@@ -10,6 +10,8 @@ from pytube.exceptions import RegexMatchError, VideoPrivate, VideoUnavailable
 ffmpeg = True
 use_progressive = False
 resolution = None
+best_res = False
+default_res = False
 
 
 def main():
@@ -28,8 +30,12 @@ def has_ffmpeg():
 
 
 def program_loop_body():
-    global resolution
+    global resolution, best_res, default_res, use_progressive
     resolution = None
+    best_res = False
+    default_res = False
+    use_progressive = False
+
     url = get_url()
     if is_playlist(url):
         playlist(url)
@@ -135,8 +141,10 @@ def download_video(yt: YouTube, folder=''):
     if len(folder) > 0:
         path = join(path, folder)
 
-    if not resolution:
+    if not best_res and not default_res and (not resolution or not available_in_resolution(yt)):
         set_download_resolution(yt)
+    elif best_res:
+        set_best_resolution(yt)
 
     if not ffmpeg or use_progressive:
         download_progressive_video(yt, path)
@@ -144,7 +152,17 @@ def download_video(yt: YouTube, folder=''):
         download_adaptive_video(yt, path)
 
 
+def available_in_resolution(yt: YouTube) -> bool:
+    if use_progressive:
+        selected_video_stream = yt.streams.filter(progressive=True, resolution=resolution).first()
+    else:
+        selected_video_stream = yt.streams.filter(adaptive=True, mime_type='video/webm', resolution=resolution).first()
+    return selected_video_stream
+
+
 def set_download_resolution(yt: YouTube):
+    global resolution, use_progressive, best_res, default_res
+
     progressive_streams = yt.streams.filter(progressive=True, type='video')
     adaptive_streams = yt.streams.filter(adaptive=True, type='video')
 
@@ -152,23 +170,44 @@ def set_download_resolution(yt: YouTube):
     p_res_max = max([int(i[:-1]) for i in p_res])
     a_res = {s.resolution for s in adaptive_streams if int(s.resolution[:-1]) > p_res_max}
 
-    options_str = f'{sort_resolutions(p_res | a_res, ascending=False)}'[1:-1].replace("'", '')
+    sorted_res = sort_resolutions(p_res | a_res, ascending=False)
+    sorted_res.extend(["best", "default"])
+    options_str = f'{sorted_res}'[1:-1] \
+        .replace("'", '')
     prompt = f'At what resolution do you want to download the following video(s)?\n' \
              f'The options are: {options_str}\n' \
              f'Note: resolutions higher than {p_res_max}p use a different downloading method and take ' \
-             f'significantly longer to download.\n' \
+             f'*significantly* longer to download.\n' \
              f'Resolution: '
-    choice = input(prompt)
+    choice = input(prompt).lower()
     all_choices = p_res | a_res
     all_choices |= {c[:-1] for c in all_choices}
+    all_choices |= {'best', 'default'}
     while choice not in all_choices:
-        choice = input(f'{choice} is not a valid resolution. The options are: {options_str} ')
-    global resolution
-    resolution = choice if choice.endswith('p') else f'{choice}p'
+        choice = input(f'{choice} is not a valid resolution. The options are: {options_str} ').lower()
 
-    int_res = int(resolution[:-1])
-    global use_progressive
-    use_progressive = int_res <= p_res_max
+    if choice not in {'best', 'default'}:
+        resolution = choice if choice.endswith('p') else f'{choice}p'
+        int_res = int(resolution[:-1])
+        use_progressive = int_res <= p_res_max
+    elif choice == 'best':
+        best_res = True
+    else:
+        default_res = True
+        use_progressive = True
+
+
+def set_best_resolution(yt: YouTube):
+    global resolution, use_progressive
+
+    progressive_streams = yt.streams.filter(progressive=True, type='video')
+    adaptive_streams = yt.streams.filter(adaptive=True, type='video')
+
+    p_res = {s.resolution for s in progressive_streams}
+    a_res = {s.resolution for s in adaptive_streams}
+    max_res = max([int(i[:-1]) for i in p_res | a_res])
+    resolution = f'{max_res}p'
+    use_progressive = max_res in p_res
 
 
 def sort_resolutions(resolutions: Set[str], ascending=True) -> List[str]:
@@ -187,13 +226,15 @@ def sort_resolutions(resolutions: Set[str], ascending=True) -> List[str]:
 def download_progressive_video(yt: YouTube, path: str):
     yt.register_on_progress_callback(progress_func)
     yt.register_on_complete_callback(complete_func)
-    video = yt.streams.filter(resolution=resolution, progressive=True).first()
+    if default_res:
+        video = yt.streams.get_highest_resolution()
+    else:
+        video = yt.streams.filter(resolution=resolution, progressive=True).first()
     video.download(path)
 
 
 def download_adaptive_video(yt: YouTube, path: str):
     # Download the separate video and audio files
-    # .first() downloads the lowest resolution video file. This is to reduce testing time.
     print('Downloading video and audio files...')
     video = yt.streams.filter(adaptive=True, mime_type='video/webm', resolution=resolution).first()
     audio = yt.streams.get_audio_only(subtype='webm')
