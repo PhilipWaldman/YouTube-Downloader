@@ -22,6 +22,7 @@ def main():
 
 
 def has_ffmpeg():
+    """Checks whether FFmpeg is installed and sets the ffmpeg boolean flag."""
     try:
         run('ffmpeg -h', stderr=False, stdout=False, check=True, shell=True)
     except CalledProcessError:
@@ -30,6 +31,7 @@ def has_ffmpeg():
 
 
 def program_loop_body():
+    """The main program that gets repeated."""
     global resolution, best_res, default_res, use_progressive
     resolution = None
     best_res = False
@@ -46,10 +48,18 @@ def program_loop_body():
 
 
 def download_more() -> bool:
+    """Asks the user if they want to download anything else.
+
+    :return: True if they want to download more; otherwise, False.
+    """
     return yes_to_continue('Do you want to download more?')
 
 
 def get_url() -> str:
+    """Asks the user for the video/playlist/channel they want to download.
+
+    :return: The URL of the content to download.
+    """
     url = input('Enter the URL of the YouTube video/playlist/channel you want to download: ')
     # This is a debug feature, so I don't have to paste the video URL every time.
     if not url:
@@ -58,10 +68,20 @@ def get_url() -> str:
 
 
 def is_playlist(url: str) -> bool:
+    """Checks whether the URL is that of a playlist.
+
+    :param url: The URL to check.
+    :return: Whether the URL is a playlist.
+    """
     return 'playlist' in url
 
 
 def is_channel(url: str) -> bool:
+    """Checks whether the URL is that of a channel/user.
+
+    :param url: The URL to check.
+    :return: Whether the URL is a channel/user.
+    """
     return 'channel' in url or 'user' in url
 
 
@@ -78,11 +98,20 @@ def channel(url: str):
 
 
 def correct_channel_name(c: Channel) -> bool:
+    """Asks the user if this is indeed the channel they want ot download.
+
+    :param c: The channel is question.
+    :return: Whether this is the correct channel.
+    """
     return yes_to_continue(f'Do you want to download all {len(c.video_urls)} (non-private) videos from the '
                            f'channel "{c.channel_name}"?')
 
 
 def download_channel(c: Channel):
+    """Download all the video of this channel.
+
+    :param c: The channel to download all videos from.
+    """
     download_playlist(c)
 
 
@@ -99,11 +128,20 @@ def playlist(url: str):
 
 
 def correct_playlist_title(p: Playlist) -> bool:
+    """Asks the user if this is indeed the playlist they want ot download.
+
+    :param p: The playlist is question.
+    :return: Whether this is the correct playlist.
+    """
     return yes_to_continue(f'Do you want to download all {p.length} (non-private) videos in the playlist '
                            f'with the title "{p.title}"?')
 
 
 def download_playlist(p: Union[Playlist, Channel]):
+    """Download all the video of this playlist.
+
+    :param p: The playlist to download all videos from.
+    """
     print()
     if type(p) is Playlist:
         n_videos = p.length
@@ -133,6 +171,11 @@ def single_video(url: str):
 
 
 def correct_video_title(yt: YouTube) -> bool:
+    """Asks the user if this is indeed the video they want ot download.
+
+    :param yt: The video is question.
+    :return: Whether this is the correct video.
+    """
     return yes_to_continue(f'Do you want to download the video with the title "{yt.title}"?')
 
 
@@ -153,6 +196,11 @@ def download_video(yt: YouTube, folder=''):
 
 
 def available_in_resolution(yt: YouTube) -> bool:
+    """Checks if the video is available in the set resolution.
+
+    :param yt: The video to check its resolution.
+    :return: Whether it is available in the set resolution.
+    """
     if use_progressive:
         selected_video_stream = yt.streams.filter(progressive=True, resolution=resolution).first()
     else:
@@ -161,6 +209,12 @@ def available_in_resolution(yt: YouTube) -> bool:
 
 
 def set_download_resolution(yt: YouTube):
+    """Asks the user to select the resolution to download this video in.
+
+    If this is a video in a playlist or channel, this will set the download resolution for all videos in the playlist.
+
+    :param yt: The video to set the download resolution for.
+    """
     global resolution, use_progressive, best_res, default_res
 
     progressive_streams = yt.streams.filter(progressive=True, type='video')
@@ -198,6 +252,10 @@ def set_download_resolution(yt: YouTube):
 
 
 def set_best_resolution(yt: YouTube):
+    """Sets the resolution to the highest resolution the video can be downloaded in.
+
+    :param yt: The video in question.
+    """
     global resolution, use_progressive
 
     progressive_streams = yt.streams.filter(progressive=True, type='video')
@@ -211,6 +269,12 @@ def set_best_resolution(yt: YouTube):
 
 
 def sort_resolutions(resolutions: Set[str], ascending=True) -> List[str]:
+    """Sorts a set of resolution strings.
+
+    :param resolutions: The unsorted set of resolution strings.
+    :param ascending: Whether to sort in ascending or descending order.
+    :return: The sorted list of resolution strings.
+    """
     res_dict = {int(r[:-1]): r for r in resolutions}
     sorted_res = []
     while len(res_dict) > 0:
@@ -224,6 +288,13 @@ def sort_resolutions(resolutions: Set[str], ascending=True) -> List[str]:
 
 
 def download_progressive_video(yt: YouTube, path: str):
+    """Downloads the video as a progressive video to the given path.
+
+    This method of downloading is faster than adaptive, but it is limited to a max resolution of 720p.
+
+    :param yt: The video to download.
+    :param path: The path to save the video to.
+    """
     yt.register_on_progress_callback(progress_func)
     yt.register_on_complete_callback(complete_func)
     if default_res:
@@ -234,6 +305,15 @@ def download_progressive_video(yt: YouTube, path: str):
 
 
 def download_adaptive_video(yt: YouTube, path: str):
+    """Downloads the video as an adaptive video to the given path.
+
+    This method of downloading is slower than progressive, but it can download higher resolutions.
+    FFmpeg needs to be installed to this function to work. It downloads the video and audio separately and then
+    combines them using FFmpeg.
+
+    :param yt: The video to download.
+    :param path: The path to save the video to.
+    """
     # Download the separate video and audio files
     print('Downloading video and audio files...')
     video = yt.streams.filter(adaptive=True, mime_type='video/webm', resolution=resolution).first()
@@ -281,6 +361,11 @@ prev_time = 0
 
 
 def calc_download_speed(bytes_remaining: int) -> float:
+    """Calculates the download speed of the last chunk that was downloaded.
+
+    :param bytes_remaining: The number of bytes remaining to be downloaded.
+    :return: The download speed in MB/s.
+    """
     global prev_bytes, prev_time
     if prev_bytes == 0:
         prev_bytes = bytes_remaining + 1
@@ -295,6 +380,12 @@ def calc_download_speed(bytes_remaining: int) -> float:
 
 
 def calc_remaining_time(bytes_remaining: int, download_speed: float) -> int:
+    """Estimates how much time remaining for the download to complete.
+
+    :param bytes_remaining: The number of bytes remaining to be downloaded.
+    :param download_speed: The download speed in MB/s.
+    :return: The estimated time remaining in s.
+    """
     return round(bytes_remaining / (1024 * 1024) / download_speed)
 
 
