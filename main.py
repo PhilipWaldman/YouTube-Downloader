@@ -195,7 +195,7 @@ def download_adaptive_video(yt: YouTube, path: str):
     # Download the separate video and audio files
     # .first() downloads the lowest resolution video file. This is to reduce testing time.
     print('Downloading video and audio files...')
-    video = yt.streams.filter(adaptive=True, mime_type='video/webm').order_by('resolution').first()
+    video = yt.streams.filter(adaptive=True, mime_type='video/webm', resolution=resolution).first()
     audio = yt.streams.get_audio_only(subtype='webm')
     if not video or not audio:
         download_progressive_video(yt, path)
